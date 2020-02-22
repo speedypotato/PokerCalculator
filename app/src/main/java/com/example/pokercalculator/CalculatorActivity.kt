@@ -1,6 +1,7 @@
 package com.example.pokercalculator
 
 import android.content.DialogInterface
+import android.content.Intent
 import android.graphics.drawable.ColorDrawable
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -27,7 +28,9 @@ import kotlin.collections.LinkedHashMap
 class CalculatorActivity : AppCompatActivity() {
     companion object {
         const val defaultBuyIn = 5000.0
-        val colorValueMap = mapOf( R.color.white to 0.0002, R.color.yellow to 0.0004,  R.color.red to 0.001,
+        const val simpleDefaultBuyIn = 1.0
+
+        val colorValueMap = mapOf(R.color.white to 0.0002, R.color.yellow to 0.0004,  R.color.red to 0.001,
             R.color.blue to 0.002, R.color.grey to 0.004, R.color.green to 0.005, R.color.orange to 0.01,
             R.color.black to 0.02, R.color.pink to 0.05, R.color.purple to 0.1, R.color.yellowDG to 0.2,
             R.color.lightBlue to 0.4, R.color.maroon to 1.0)
@@ -37,6 +40,12 @@ class CalculatorActivity : AppCompatActivity() {
             R.color.black to R.color.pink, R.color.pink to R.color.purple,
             R.color.purple to R.color.yellowDG, R.color.yellowDG to R.color.lightBlue,
             R.color.lightBlue to R.color.maroon, R.color.maroon to R.color.white)
+
+        val simpleColorValueMap = mapOf(R.color.white to 0.005, R.color.red to 0.01,
+            R.color.green to 0.025, R.color.blue to 0.05, R.color.black to 0.1)
+        val simpleNextColor = mapOf(R.color.white to R.color.red, R.color.red to R.color.green,
+            R.color.green to R.color.blue, R.color.blue to R.color.black, R.color.black to R.color.white)
+
         const val defaultQty = 0
         const val decimalPlaces = 3
         const val maxLength = 10
@@ -46,13 +55,28 @@ class CalculatorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        initMode()
+
         initBuyIn()
 
         colorMap = LinkedHashMap()
         valQuantMap = LinkedHashMap()
-        initRows(colorValueMap)
+        if (simpleMode)
+            initRows(simpleColorValueMap)
+        else
+            initRows(colorValueMap)
 
         updateTotal()
+    }
+
+    /**
+     * Initialize correct mode var from intent
+     */
+    private fun initMode() {
+        simpleMode = intent.getBooleanExtra(resources.getString(R.string.simple_mode_tag), true)
+        if (simpleMode)
+            buyInAmt = simpleDefaultBuyIn
+        changeModeButton.setOnClickListener { switchMode() }
     }
 
     /**
@@ -64,13 +88,21 @@ class CalculatorActivity : AppCompatActivity() {
                 setText(buyInAmt.toString())
                 inputType = InputType.TYPE_CLASS_NUMBER + InputType.TYPE_NUMBER_FLAG_DECIMAL
             }
-            AlertDialog.Builder(this)
-                .setTitle(resources.getString(R.string.enter_buy_in_amt))
-                .setMessage(resources.getString(R.string.buy_in_message))
-                .setView(buyInEditText)
-                .setPositiveButton(resources.getString(R.string.ok)) { _, _ -> updateValues(buyInEditText.text.toString()) }
-                .setNegativeButton(resources.getString(R.string.cancel), null)
-                .show()
+            if (simpleMode)
+                AlertDialog.Builder(this)
+                    .setTitle(resources.getString(R.string.enter_buy_in_amt))
+                    .setView(buyInEditText)
+                    .setPositiveButton(resources.getString(R.string.ok)) { _, _ -> updateValues(buyInEditText.text.toString()) }
+                    .setNegativeButton(resources.getString(R.string.cancel), null)
+                    .show()
+            else
+                AlertDialog.Builder(this)
+                    .setTitle(resources.getString(R.string.enter_buy_in_amt))
+                    .setMessage(resources.getString(R.string.buy_in_message))
+                    .setView(buyInEditText)
+                    .setPositiveButton(resources.getString(R.string.ok)) { _, _ -> updateValues(buyInEditText.text.toString()) }
+                    .setNegativeButton(resources.getString(R.string.cancel), null)
+                    .show()
         }
     }
 
@@ -139,25 +171,53 @@ class CalculatorActivity : AppCompatActivity() {
     }
 
     /**
+     * Swap between simple/complex mode
+     */
+    private fun switchMode() {
+        startActivity(Intent(this, CalculatorActivity::class.java).apply {
+            putExtra(resources.getString(R.string.simple_mode_tag), !simpleMode)
+        })
+        finish()
+    }
+
+    /**
      * onClick to rotate colors
      */
     private fun updateColor(v: View) {
-        v.setBackgroundColor(
-            ContextCompat.getColor(this, nextColor[colorMap[v]] ?: R.color.white)
-        )
-        colorMap[v] = nextColor[colorMap[v]] ?: R.color.white
+        if (simpleMode) {
+            v.setBackgroundColor(
+                ContextCompat.getColor(this, simpleNextColor[colorMap[v]] ?: R.color.white)
+            )
+            colorMap[v] = simpleNextColor[colorMap[v]] ?: R.color.white
+        } else {
+            v.setBackgroundColor(
+                ContextCompat.getColor(this, nextColor[colorMap[v]] ?: R.color.white)
+            )
+            colorMap[v] = nextColor[colorMap[v]] ?: R.color.white
+        }
     }
 
     /**
      * Updates chip values when a new buy-in is submitted
      */
     private fun updateValues(s: String) {
-        if (s.isNotBlank() && s.toDoubleOrNull() is Double) {
-            buyInAmt = s.toDouble()
-            var cur = R.color.white
-            for (fields in valQuantMap) {
-                fields.key.setText(((colorValueMap[cur] ?: 0.0002) * buyInAmt).toString())
-                cur = nextColor[cur] ?: R.color.white
+        if (simpleMode) {
+            if (s.isNotBlank() && s.toDoubleOrNull() is Double) {
+                buyInAmt = s.toDouble()
+                var cur = R.color.white
+                for (fields in valQuantMap) {
+                    fields.key.setText(((simpleColorValueMap[cur] ?: 0.005) * buyInAmt).toString())
+                    cur = simpleNextColor[cur] ?: R.color.white
+                }
+            }
+        } else {
+            if (s.isNotBlank() && s.toDoubleOrNull() is Double) {
+                buyInAmt = s.toDouble()
+                var cur = R.color.white
+                for (fields in valQuantMap) {
+                    fields.key.setText(((colorValueMap[cur] ?: 0.0002) * buyInAmt).toString())
+                    cur = nextColor[cur] ?: R.color.white
+                }
             }
         }
     }
@@ -183,7 +243,7 @@ class CalculatorActivity : AppCompatActivity() {
     }
 
 
-
+    private var simpleMode = true
     private var buyInAmt = defaultBuyIn
     private lateinit var valQuantMap: LinkedHashMap<EditText, EditText>
     private lateinit var colorMap: LinkedHashMap<View, Int>     //added because getting color from View isn't working
