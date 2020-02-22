@@ -1,2 +1,2 @@
 include ':app'
-rootProject.name='PokerAssist'
+rootProject.name='Poker Calculator'
